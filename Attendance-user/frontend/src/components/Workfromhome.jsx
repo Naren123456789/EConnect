@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+
+
+
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Datetime from "react-datetime";
 import "react-datetime/css/react-datetime.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Baseaxios, LS } from "../Utils/Resuse";
+import { Baseaxios, LS ,ipadr} from "../Utils/Resuse";
 import moment from "moment";
 
 const WorkFromHome = () => {
@@ -12,6 +15,29 @@ const WorkFromHome = () => {
   const [toDate, setToDate] = useState(null);
   const [reason, setReason] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [ipAddresses, setIpAddresses] = useState(null);
+  const [selectedIp, setSelectedIp] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchIpAddresses();
+  }, []);
+
+  const fetchIpAddresses = async () => {
+    try {
+      const response = await fetch(`${ipadr}/ip-info`);
+      const data = await response.json();
+      setIpAddresses({
+        public: data.public_ip,
+        local: data.local_ip
+      });
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error fetching IP addresses:", error);
+      toast.error("Failed to fetch IP addresses");
+      setIsLoading(false);
+    }
+  };
 
   const handleFromDateChange = (date) => {
     setFromDate(date);
@@ -19,6 +45,10 @@ const WorkFromHome = () => {
 
   const handleToDateChange = (date) => {
     setToDate(date);
+  };
+
+  const handleIpChange = (e) => {
+    setSelectedIp(e.target.value);
   };
 
   const remoteworkrequestapi = (newRequest) => {
@@ -51,20 +81,19 @@ const WorkFromHome = () => {
         console.error("Error submitting remote work request:", err.response || err);
       });
   };
-  
-
 
   const handleApplyButtonClick = () => {
-    if (fromDate && toDate && reason) {
+    if (fromDate && toDate && reason && selectedIp) {
       const newRequest = {
         fromDate: moment(fromDate).format("YYYY-MM-DD"),
         toDate: moment(toDate).format("YYYY-MM-DD"),
-        requestDate: moment().toISOString(),
+        requestDate: moment().toISOString().split('T')[0],
         reason: reason,
+        ip: selectedIp
       };
       remoteworkrequestapi(newRequest);
     } else {
-      toast.error("Please fill in all fields.", {
+      toast.error("Please fill in all fields including IP selection.", {
         position: "top-right",
       });
     }
@@ -74,6 +103,7 @@ const WorkFromHome = () => {
     setFromDate(null);
     setToDate(null);
     setReason("");
+    setSelectedIp("");
   };
 
   const isWeekday = (date) => {
@@ -104,8 +134,8 @@ const WorkFromHome = () => {
         </Link>
       </div>
       <div className="mt-10">
-        <div className=" mt-4 bg-gradient-to-tr from-white to-blue-100 border-x p-4 rounded-lg shadow-xl">
-          <div className="container mx-auto ">
+        <div className="mt-4 bg-gradient-to-tr from-white to-blue-100 border-x p-4 rounded-lg shadow-xl">
+          <div className="container mx-auto">
             <form>
               <div className="">
                 <label
@@ -160,6 +190,33 @@ const WorkFromHome = () => {
               </div>
               <div className="mt-4">
                 <label
+                  htmlFor="ipSelect"
+                  className="block text-base font-medium text-gray-700 mb-2"
+                >
+                  Select IP Address
+                </label>
+                <select
+                  id="ipSelect"
+                  value={selectedIp}
+                  onChange={handleIpChange}
+                  className="p-2 text-sm border border-gray-300 rounded-md block w-full"
+                  disabled={isLoading}
+                >
+                  <option value="">Select an IP address</option>
+                  {ipAddresses && (
+                    <>
+                      <option value={ipAddresses.public}>
+                        Public IP: {ipAddresses.public}
+                      </option>
+                      <option value={ipAddresses.local}>
+                        Local IP: {ipAddresses.local}
+                      </option>
+                    </>
+                  )}
+                </select>
+              </div>
+              <div className="mt-4">
+                <label
                   htmlFor="reason"
                   className="block text-base font-medium text-gray-700"
                 >
@@ -177,7 +234,7 @@ const WorkFromHome = () => {
               <button
                 type="button"
                 onClick={handleApplyButtonClick}
-                className={`mt-4 px-4 py-2 text-base bg-blue-500 rounded-md text-white hover:bg-[#b7c6df80] hover:text-black  active:bg-white active:text-white ${
+                className={`mt-4 px-4 py-2 text-base bg-blue-500 rounded-md text-white hover:bg-[#b7c6df80] hover:text-black active:bg-white active:text-white ${
                   isApplying ? "opacity-50 cursor-not-allowed" : ""
                 }`}
                 disabled={isApplying}

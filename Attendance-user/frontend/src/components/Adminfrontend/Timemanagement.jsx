@@ -4,42 +4,93 @@ import "react-datepicker/dist/react-datepicker.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch, faDownload } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
+import { ipadr } from "../../Utils/Resuse";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
+import { DateRangePicker } from "react-date-range";
+import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 const Timemanagement = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [attendanceData, setAttendanceData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedYear, setSelectedYear] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [dateRange, setDateRange] = useState([
+    {
+      startDate: null,
+      endDate: null,
+      key: "selection",
+    },
+  ]);
 
+  // Fetch data when component mounts or when search/date changes
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const formattedDate = formatDate(selectedDate);
-        const response = await axios.get(
-          `http://127.0.0.1:8000/attendance/?date=${formattedDate}`
-        );
-        const filteredData =
-          response.data && Array.isArray(response.data.attendance)
-            ? response.data.attendance.filter((item) =>
-              item.name.toLowerCase().includes(searchTerm.toLowerCase())
-            )
-            : [];
-        setAttendanceData(filteredData);
-        setLoading(false);
-        setError(null);
-      } catch (error) {
-        setLoading(false);
-        setAttendanceData([]);
-        setError("Error fetching data");
-      }
-    };
-
     fetchData();
   }, [selectedDate, searchTerm]);
+
+  // Effect to filter data when date range or search term changes
+  useEffect(() => {
+    filterData();
+  }, [attendanceData, dateRange, searchTerm]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const formattedDate = formatDate(selectedDate);
+      const response = await axios.get(
+        `${ipadr}/attendance/?date=${formattedDate}`
+      );
+      const data = response.data && Array.isArray(response.data.attendance)
+        ? response.data.attendance
+        : [];
+      setAttendanceData(data);
+      setLoading(false);
+      setError(null);
+    } catch (error) {
+      setLoading(false);
+      setAttendanceData([]);
+      setError("Error fetching data");
+    }
+  };
+
+  const filterData = () => {
+    let filtered = [...attendanceData];
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by date range
+    if (dateRange[0].startDate && dateRange[0].endDate) {
+      filtered = filtered.filter(item => {
+        const itemDate = parseISO(item.date);
+        return isWithinInterval(itemDate, {
+          start: startOfDay(dateRange[0].startDate),
+          end: endOfDay(dateRange[0].endDate)
+        });
+      });
+    }
+
+    setFilteredData(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handleDateRangeChange = (ranges) => {
+    setDateRange([ranges.selection]);
+    setSelectedMonth("");
+    setSelectedYear("");
+  };
 
   const formatDate = (date) => {
     const year = date.getFullYear();
@@ -48,44 +99,29 @@ const Timemanagement = () => {
     return `${year}-${month}-${day}`;
   };
 
-  const disableSunday = (date) => {
-    return date.getDay() !== 0;
-  };
-
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = attendanceData.slice(indexOfFirstItem, indexOfLastItem);
+  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
 
   const paginate = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
 
   const downloadExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(attendanceData);
+    const worksheet = XLSX.utils.json_to_sheet(filteredData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "AttendanceData");
     XLSX.writeFile(workbook, "attendance_data.xlsx");
   };
 
   return (
-    <div className="mr-8 p-10 bg-white min-h-96 lg:min-h-[90vh] w-full  shadow-black rounded-xl justify-center items-center relative jsonback  ml-10 rounded-md">
+    <div className="mr-8 p-10 bg-white min-h-96 lg:min-h-[90vh] w-full shadow-black rounded-xl justify-center items-center relative jsonback ml-10 rounded-md">
       <div className="">
         <h1 className="text-5xl font-semibold font-inter pb-2 text-transparent bg-gradient-to-r from-zinc-600 to-zinc-950 bg-clip-text border-b-2">
           Clock In & Clock Out
         </h1>
         <div className="w-full bg-gradient-to-b from-white to-blue-50 shadow-lg rounded-xl border border-gray-200 my-2 mt-10">
-          <header className="px-4 py-4 border-b border-gray-200 flex justify-between">
-            <DatePicker
-              selected={selectedDate}
-              onChange={(date) => setSelectedDate(date)}
-              dateFormat="dd-MM-yyyy"
-              className="border border-gray-300 rounded-md w-24 px-2 py-1 text-sm text-center"
-              style={{ backgroundColor: "#f7fafc", cursor: "pointer" }}
-              placeholderText="Select date"
-              minDate={new Date("01-01-2024")}
-              maxDate={new Date("31-12-2024")}
-              filterDate={disableSunday}
-            />
+          <header className="flex justify-between px-5 py-4 border-b border-gray-200">
             <div className="relative">
               <input
                 type="text"
@@ -98,7 +134,28 @@ const Timemanagement = () => {
                 <FontAwesomeIcon icon={faSearch} />
               </div>
             </div>
+
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <button
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                >
+                  {showDatePicker ? 'Hide Date Range' : 'Show Date Range'}
+                </button>
+                {showDatePicker && (
+                  <div className="absolute right-0 top-12 z-50 bg-white shadow-lg rounded-md border">
+                    <DateRangePicker
+                      ranges={dateRange}
+                      onChange={handleDateRangeChange}
+                      moveRangeOnFirstSelection={false}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </header>
+
           <div className="p-3">
             <div>
               {error && <p className="text-red-500">{error}</p>}
@@ -132,10 +189,7 @@ const Timemanagement = () => {
                 <tbody className="text-sm">
                   {loading ? (
                     <tr>
-                      <td
-                        colSpan="7"
-                        className="p-2 whitespace-nowrap font-inter text-center"
-                      >
+                      <td colSpan="7" className="p-2 whitespace-nowrap font-inter text-center">
                         <div className="font-medium text-center">Loading...</div>
                       </td>
                     </tr>
@@ -163,7 +217,7 @@ const Timemanagement = () => {
                           <div className="font-medium text-center">{row.status}</div>
                         </td>
                         <td scope="col" className="p-2 whitespace-nowrap">
-                          <div className="font-medium text-center">{row.remark} </div>
+                          <div className="font-medium text-center">{row.remark}</div>
                         </td>
                       </tr>
                     ))
@@ -191,15 +245,15 @@ const Timemanagement = () => {
             <button
               className="py-1 px-3 bg-blue-500 hover:bg-blue-400 text-white text-sm font-inter rounded-full shadow-lg"
               onClick={() => paginate(currentPage + 1)}
-              disabled={indexOfLastItem >= attendanceData.length}
+              disabled={indexOfLastItem >= filteredData.length}
             >
               Next
             </button>
           </div>
           <div className="text-sm font-semibold text-gray-800">
-            Page {attendanceData.length > 0 ? currentPage : 0} of{" "}
-            {attendanceData.length > 0
-              ? Math.ceil(attendanceData.length / itemsPerPage)
+            Page {filteredData.length > 0 ? currentPage : 0} of{" "}
+            {filteredData.length > 0
+              ? Math.ceil(filteredData.length / itemsPerPage)
               : 0}
           </div>
           <button

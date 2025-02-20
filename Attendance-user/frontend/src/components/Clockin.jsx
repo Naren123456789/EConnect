@@ -143,7 +143,7 @@ import React, { useState, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { FaClock, FaSignInAlt, FaSignOutAlt } from "react-icons/fa";
-import { Baseaxios, LS } from "../Utils/Resuse";
+import { Baseaxios, LS  ,ipadr } from "../Utils/Resuse";
 
 function Clockin() {
   const [Login, setLogin] = useState(false);
@@ -163,7 +163,7 @@ function Clockin() {
       redirect: "follow"
     };
 
-    fetch("http://127.0.0.1:8000/Clockin", requestOptions)
+    fetch(`${ipadr}/Clockin`, requestOptions)
       .then(response => response.json())
       .then(data => {
         if (data.message && data.message.includes("Clock-in successful")) {
@@ -195,7 +195,7 @@ function Clockin() {
       redirect: "follow"
     };
 
-    fetch("http://127.0.0.1:8000/Clockout", requestOptions)
+    fetch(`${ipadr}/Clockout`, requestOptions)
       .then(response => response.json())
       .then(data => {
         if (data.message && data.message.includes("Clock-out successful")) {
@@ -225,7 +225,7 @@ function Clockin() {
       redirect: "follow"
     };
 
-    fetch("http://127.0.0.1:8000/PreviousDayClockout", requestOptions)
+    fetch(`${ipadr}/PreviousDayClockout`, requestOptions)
       .catch(error => console.error(error));
   };
 

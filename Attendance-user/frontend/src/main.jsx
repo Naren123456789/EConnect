@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Outlet, RouterProvider } from "react-router-dom";
+import { BrowserRouter,createBrowserRouter, Outlet, Route, RouterProvider, Routes } from "react-router-dom";
 import "./index.css";
 import App from "./App";
 import Clockin from "./components/Clockin";
@@ -26,6 +26,9 @@ import AdminProfile from "./components/Adminfrontend/Adminprofile";
 import Leavehistory from "./components/Adminfrontend/Leave_History";
 import AddUser from "./components/Adminfrontend/new_employee";
 import TaskPage from "./components/Taskpage";
+import EmployeeDetails from "./components/EmployeeDetails";
+import TaskAssign from "./components/TaskAssign";
+import ViewAssignedTask from "./components/ViewAssignedTask";
 
 const DashboardPage = () => (
   <Checkauth>
@@ -47,6 +50,8 @@ const tempdata = [
     return item;
   }),
 ];
+
+
 
 const router = createBrowserRouter([
   {
@@ -135,6 +140,14 @@ const router = createBrowserRouter([
       {
         path: "history",
         element: <Leavehistory />,
+      },
+      {
+        path:"taskassgn",
+        element:<TaskAssign />
+      },
+      {
+        path:"viewtask",
+        element:<ViewAssignedTask />
       }
     ],
   },
@@ -157,6 +170,10 @@ const router = createBrowserRouter([
       {
         path: "employee",
         element: <Employeelist />,
+        // children:[{
+        //   path:':id',
+        //   element:<EmployeeDetails/>
+        // },],
       },
       {
         path: "leaveapproval",
@@ -178,6 +195,11 @@ const router = createBrowserRouter([
         path: "newUser",
         element: <AddUser />,
       },
+      {
+        path:':id',
+        element:<EmployeeDetails/>
+      }
+      
     ],
   },
 ]);
@@ -205,7 +227,17 @@ const MainApp = () => {
   return (
     <RouterProvider router={router}>
       <Outlet />
+      <BrowserRouter>
+      <Routes>
+        <Route path="/admin/employee" element={<Employeelist/>}/>
+        <Route path="/admin/employee/:id" element={<EmployeeDetails/>}/>
+      </Routes>
+      
+      </BrowserRouter>
     </RouterProvider>
+   
+
+    
   );
 };
 

@@ -1,5 +1,5 @@
-from Mongo import Otherleave_History_Details,Permission_History_Details,normal_leave_details,store_Other_leave_request,get_approved_leave_history,get_remote_work_requests,attendance_details,leave_History_Details,Remote_History_Details,get_attendance_by_date,update_remote_work_request_status_in_mongo,updated_user_leave_requests_status_in_mongo,get_user_leave_requests, get_employee_id_from_db,store_Permission_request, get_all_users, get_admin_info, add_task_list, edit_the_task, delete_a_task, get_the_tasks, delete_leave, get_user_info, store_sunday_request, get_admin_info, add_an_employee, PreviousDayClockout, auto_clockout, add_a_manager, leave_update_notification, recommend_manager_leave_requests_status_in_mongo, get_manager_leave_requests, get_only_user_leave_requests, get_admin_page_remote_work_requests, update_remote_work_request_recommend_in_mongo, get_TL_page_remote_work_requests, users_leave_recommend_notification, managers_leave_recommend_notification,auto_approve_manager_leaves
-from model import Item4,Item,Item2,Item3,Csvadd,Csvedit,Csvdel,CT,Item5,Item6,Item9,RemoteWorkRequest,Item7,Item8, Tasklist, Taskedit, Deletetask, Gettasks, DeleteLeave, Item9, AddEmployee
+from Mongo import Otherleave_History_Details,Permission_History_Details,normal_leave_details,store_Other_leave_request,get_approved_leave_history,get_remote_work_requests,attendance_details,leave_History_Details,Remote_History_Details,get_attendance_by_date,update_remote_work_request_status_in_mongo,updated_user_leave_requests_status_in_mongo,get_user_leave_requests, get_employee_id_from_db,store_Permission_request, get_all_users, get_admin_info, add_task_list, edit_the_task, delete_a_task, get_the_tasks, delete_leave, get_user_info, store_sunday_request, get_admin_info, add_an_employee, PreviousDayClockout, auto_clockout, leave_update_notification, recommend_manager_leave_requests_status_in_mongo, get_manager_leave_requests, get_only_user_leave_requests, get_admin_page_remote_work_requests, update_remote_work_request_recommend_in_mongo, get_TL_page_remote_work_requests, users_leave_recommend_notification, managers_leave_recommend_notification,auto_approve_manager_leaves,edit_an_employee,get_managers,task_assign_to_multiple_users, get_team_members, manager_task_assignment, get_local_ip, get_public_ip, assigned_task, get_single_task
+from model import Item4,Item,Item2,Item3,Csvadd,Csvedit,Csvdel,CT,Item5,Item6,Item9,RemoteWorkRequest,Item7,Item8, Tasklist, Taskedit, Deletetask, Gettasks, DeleteLeave, Item9, AddEmployee,EditEmployee,Taskassign, SingleTaskAssign
 from fastapi import FastAPI, HTTPException,Path,Query, HTTPException,Form, Request
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +8,7 @@ from auth.auth_bearer import JWTBearer
 from http.client import HTTPException
 from datetime import datetime, timedelta, date
 from dateutil import parser
-from typing import Union, Dict
+from typing import Union, Dict, List
 import uvicorn
 import Mongo
 import pytz
@@ -135,13 +135,8 @@ async def get_clock_records(userid: str = Path(..., title="The name of the user 
 
 # Admin Dashboard Attendance
 @app.get("/attendance/")
-async def fetch_attendance_by_date(date: str = Query(...)):
-    try:
-        formatted_date = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date format. Use yyyy-MM-dd")
-
-    attendance_data = get_attendance_by_date(formatted_date)
+async def fetch_attendance_by_date():
+    attendance_data = get_attendance_by_date()
     if not attendance_data:
         return "No attendance data found for the selected date"
 
@@ -159,35 +154,17 @@ async def get_employee_id(name: str = Path(..., title="The username of the user"
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# Leave Management
 
+#Leave-request
 @app.post('/leave-request')
 def leave_request(item: Item6):
     try:
-        # Adjust parsing to handle both complete and date-only formats
-        def parse_date(date_str):
-            try:
-                # Attempt to parse as full timestamp with time and microseconds
-                return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
-            except ValueError:
-                try:
-                    # Fallback to parsing as date-only
-                    return datetime.strptime(date_str, "%Y-%m-%d")
-                except ValueError:
-                    raise ValueError(f"Invalid date format: {date_str}")
-
-        # Parse selectedDate and requestDate
-        selected_date_str = item.selectedDate.rstrip('Z')
-        request_date_str = item.requestDate.rstrip('Z')
-        selected_date = parse_date(selected_date_str)
-        request_date = parse_date(request_date_str)
-
-        # Localize to UTC
-        selected_date_utc = pytz.utc.localize(selected_date)
-        request_date_utc = pytz.utc.localize(request_date)
+        
+        print(item.selectedDate)
+        print(item.requestDate)
 
         # Add request time in the desired timezone
-        time = (datetime.now(pytz.timezone("Asia/Kolkata"))).strftime("%I:%M:%S %p")
+        time = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%I:%M:%S %p")
 
         # Store the leave request in MongoDB
         result = Mongo.store_leave_request(
@@ -195,10 +172,9 @@ def leave_request(item: Item6):
             item.employeeName,
             time,
             item.leaveType,
-            selected_date_utc,
-            request_date_utc,
+            item.selectedDate,  # Formatted as DD-MM-YYYY
+            item.requestDate,  # Formatted as DD-MM-YYYY
             item.reason,
-            item.status,
         )
 
         return {"message": "Leave request stored successfully", "result": result}
@@ -206,39 +182,28 @@ def leave_request(item: Item6):
         raise HTTPException(400, str(e))
 
 @app.post('/Bonus-leave-request')
-def leave_request(item: Item9):
+def bonus_leave_request(item: Item9):
     try:
-        # Helper function to parse dates
-        def parse_date(date_str):
-            try:
-                return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
-            except ValueError:
-                return datetime.strptime(date_str, "%Y-%m-%d")
-
-        # Parse and localize dates
-        selected_date = pytz.utc.localize(parse_date(item.selectedDate.rstrip('Z')))
-        request_date = pytz.utc.localize(parse_date(item.requestDate.rstrip('Z')))
+        # Get the current time in IST
         time = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%I:%M:%S %p")
 
-        # Store leave request
+        # Store bonus leave request
         result = store_sunday_request(
             item.userid,
             item.employeeName,
             time,
             item.leaveType,
-            selected_date,
+            item.selectedDate,  # Formatted as DD-MM-YYYY
             item.reason,
-            request_date,
+            item.requestDate,  # Formatted as DD-MM-YYYY
         )
 
-        return {"message": "Combo request processed", "result": result}
+        return {"message": "Bonus leave request stored successfully", "result": result}
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=400, detail=str(e))
 
-
-
-# # Leave History
-
+# Leave History
 @app.get("/leave-History/{userid}")
 async def get_leave_History(userid: str = Path(..., title="The userid of the user")):
     try:
@@ -251,13 +216,9 @@ async def get_leave_History(userid: str = Path(..., title="The userid of the use
 
 # HR Page To Fetch Every Users Leave Requests
 @app.get("/all_users_leave_requests/")
-async def fetch_user_leave_requests(requestDate: str = Query(..., alias="requestDate"), selectedOption: str = Query(..., alias="selectedOption")):
-    try:
-        formatted_date = datetime.strptime(requestDate, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date format. Use yyyy-MM-dd")
+async def fetch_user_leave_requests(selectedOption: str = Query(..., alias="selectedOption")):
 
-    user_leave_requests = get_user_leave_requests(formatted_date, selectedOption)
+    user_leave_requests = get_user_leave_requests(selectedOption)
     if not user_leave_requests:
         raise HTTPException(status_code=404, detail="No leave data found for the selected date")
 
@@ -265,13 +226,8 @@ async def fetch_user_leave_requests(requestDate: str = Query(..., alias="request
 
 # Admin Page To Fetch Only Managers Leave Requests 
 @app.get("/manager_leave_requests/")
-async def fetch_manager_leave_requests(requestDate: str = Query(..., alias="requestDate"), selectedOption: str = Query(..., alias="selectedOption")):
-    try:
-        formatted_date = datetime.strptime(requestDate, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date format. Use yyyy-MM-dd")
-
-    user_leave_requests = get_manager_leave_requests(formatted_date, selectedOption)
+async def fetch_manager_leave_requests(selectedOption: str = Query(..., alias="selectedOption")):
+    user_leave_requests = get_manager_leave_requests(selectedOption)
     if not user_leave_requests:
         raise HTTPException(status_code=404, detail="No leave data found for the selected date")
 
@@ -279,15 +235,10 @@ async def fetch_manager_leave_requests(requestDate: str = Query(..., alias="requ
 
 #TL Page To Fetch Only Users Leave Requests Under Their Team
 @app.get("/only_users_leave_requests/")
-async def fetch_users_leave_requests(requestDate: str = Query(..., alias="requestDate"), selectedOption: str = Query(..., alias="selectedOption"), TL: str = Query(..., alias="TL")):
-    try:
-        formatted_date = datetime.strptime(requestDate, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date format. Use yyyy-MM-dd")
-
-    user_leave_requests = get_only_user_leave_requests(formatted_date, selectedOption, TL)
+async def fetch_users_leave_requests(selectedOption: str = Query(..., alias="selectedOption"), TL: str = Query(..., alias="TL")):
+    user_leave_requests = get_only_user_leave_requests(selectedOption, TL)
     if not user_leave_requests:
-        raise HTTPException(status_code=404, detail="No leave data found for the selected date")
+        raise HTTPException(status_code=404, detail="No leave data found")
 
     return {"user_leave_requests": user_leave_requests}
 
@@ -362,13 +313,6 @@ async def delete_leave_request(item:DeleteLeave):
 @app.post("/remote-work-request")
 def remote_work_request(request: RemoteWorkRequest):
     try:
-        from_date_utc = parser.isoparse(request.fromDate)
-        to_date_utc = parser.isoparse(request.toDate)
-        request_date_utc = parser.isoparse(request.requestDate)
-
-        from_date_utc = from_date_utc.astimezone(pytz.utc)
-        to_date_utc = to_date_utc.astimezone(pytz.utc)
-        request_date_utc = request_date_utc.astimezone(pytz.utc)
         
         # Add request time in the desired timezone
         time = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%I:%M:%S %p")
@@ -377,10 +321,11 @@ def remote_work_request(request: RemoteWorkRequest):
             request.userid,
             request.employeeName,
             time,
-            from_date_utc,
-            to_date_utc,
-            request_date_utc,
+            request.fromDate,
+            request.toDate,
+            request.requestDate,
             request.reason,
+            request.ip
         )
         return {"message": "Remote work request stored successfully", "result": result}
     except Exception as e:
@@ -393,6 +338,7 @@ async def get_Remote_History(userid:str = Path(..., title="The name of the user 
         Remote_History = Remote_History_Details(userid)
         return{"Remote_History": Remote_History}
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
 # HR Page User Remote Work Requests
@@ -415,31 +361,31 @@ async def fetch_remote_work_requests(TL: str = Query(..., alias="TL")):
 
 
 # HR Remote Work Responses
-@app.put("/updated_remote_work_requests")
-async def update_remote_work_request_status(userid: str = Form(...), status: str = Form(...)):
+@app.put("/update_remote_work_requests")
+async def update_remote_work_request_status(userid: str = Form(...), status: str = Form(...), id: str = Form(...)):
     try:
-        updated = update_remote_work_request_status_in_mongo(userid, status)
+        updated = update_remote_work_request_status_in_mongo(userid, status, id)
         if updated:
             return {"message": "Status updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-update_remote_work_request_recommend_in_mongo
 # HR Remote Work Responses
 @app.put("/recommend_remote_work_requests")
-async def update_remote_work_request_status(userid: str = Form(...), status: str = Form(...)):
+async def update_remote_work_request_status(userid: str = Form(...), status: str = Form(...), id: str = Form(...)):
     try:
-        updated = update_remote_work_request_recommend_in_mongo(userid, status)
+        print(id)
+        updated = update_remote_work_request_recommend_in_mongo(userid, status, id)
         if updated:
             return {"message": "Recommend status updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
 # Admin Page User Leave History
-@app.get("/leave-history")
-def get_leave_history():
-    leave_history = get_approved_leave_history()
-    return {"leave_history": list(leave_history)}
+@app.get("/approved-leave-history/{name}")
+def get_leave_history(name: str = Path(..., title= "Team lead name")):
+    leave_history = get_approved_leave_history(name)
+    return {"leave_history": leave_history}
 
 # Admin ID
 @app.post('/id',dependencies=[Depends(JWTBearer())])
@@ -469,69 +415,59 @@ def admin_signup(item: Item5):
     return jwt
 
 
+from datetime import datetime
+import pytz
+from fastapi import HTTPException
+
+def parse_and_format_date(date_str):
+    """Parses various date formats and converts them to DD-MM-YYYY format."""
+    if not date_str:
+        return None
+
+    date_str = date_str.rstrip('Z')  # Remove 'Z' if present
+    formats = ["%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"]  # Possible formats
+
+    for fmt in formats:
+        try:
+            parsed_date = datetime.strptime(date_str, fmt)
+            return parsed_date.strftime("%d-%m-%Y")  # Convert to DD-MM-YYYY
+        except ValueError:
+            continue  # Try next format if parsing fails
+
+    raise ValueError(f"Invalid date format: {date_str}")
+
 @app.post('/Other-leave-request')
 def leave_request(item: Item7):
     try:
-        def parse_date(date_str):
-            # Remove 'Z' if present
-            date_str = date_str[:-1] if date_str.endswith('Z') else date_str
-            # Try parsing with full datetime format, fallback to date only
-            try:
-                return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
-            except ValueError:
-                return datetime.strptime(date_str, "%Y-%m-%d")
-
-        selected_date = parse_date(item.selectedDate)
-        To_date = parse_date(item.ToDate)
-        request_date = parse_date(item.requestDate)
-
-        # Localize dates to UTC
-        selected_date_utc = pytz.utc.localize(selected_date)
-        To_date_utc = pytz.utc.localize(To_date)
-        request_date_utc = pytz.utc.localize(request_date)
-
         # Add request time in the desired timezone
         time = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%I:%M:%S %p")
 
+        # Store the leave request in MongoDB
         result = store_Other_leave_request(
             item.userid,
             item.employeeName,
             time,  # Use the generated time
             item.leaveType,
-            selected_date_utc,
-            To_date_utc,
-            request_date_utc,
+            item.selectedDate,  # Formatted as DD-MM-YYYY
+            item.ToDate,  # Formatted as DD-MM-YYYY
+            item.requestDate,  # Formatted as DD-MM-YYYY
             item.reason,
         )
 
         return {"message": "Leave request stored successfully", "result": result}
     except Exception as e:
         raise HTTPException(400, str(e))
-
-    
-    
     
 @app.post('/Permission-request')
 def leave_request(item: Item8):
     try:
-        selected_date_str = item.selectedDate[:-1] if item.selectedDate.endswith('Z') else item.selectedDate
-        request_date_str = item.requestDate[:-1] if item.requestDate.endswith('Z') else item.requestDate
-    
-
-        selected_date = datetime.strptime(selected_date_str, "%Y-%m-%dT%H:%M:%S.%f")
-        request_date = datetime.strptime(request_date_str, "%Y-%m-%dT%H:%M:%S.%f")
-
-        selected_date_utc = pytz.utc.localize(selected_date)
-        request_date_utc = pytz.utc.localize(request_date)
-
-      
         result = store_Permission_request(
                 item.userid,
                 item.employeeName,
                 item.time,
                 item.leaveType,
-                selected_date_utc,
-                request_date_utc,
+                item.selectedDate,
+                item.requestDate,
                 item.timeSlot,
                 item.reason,
             )
@@ -565,13 +501,6 @@ async def get_Permission_history(userid: str = Path(..., title="The ID of the us
         # If an exception occurs, return a 500 Internal Server Error
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# @app.post('/autoClockout')
-# def auto_clockout(data: CT):
-#     total_hours_worked = Mongo.Clockout(userid=data.userid, name=data.name, time=data.time)
-#     return {"message": "Automatic clock out successful", "total_hours_worked": total_hours_worked}
-
-
 @app.get("/get_all_users")
 async def get_all_users_route():
         # Fetch all users using the function from Mongo.py
@@ -586,58 +515,68 @@ async def add_task(item:Tasklist):
     try:
         # Parse the date to ensure it's in the correct format
         parsed_date = datetime.strptime(item.date, "%d-%m-%Y").strftime("%d-%m-%Y")
+        due_date = datetime.strptime(item.due_date, "%Y-%m-%d").strftime("%d-%m-%Y")
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use dd-mm-yyyy.")
-    result = add_task_list(item.task, item.userid, parsed_date)
+    result = add_task_list(item.task, item.userid, parsed_date, due_date)
+    return result
+
+@app.post("/manager_task_assign")
+async def task_assign(item:SingleTaskAssign):
+    # Parse the date to ensure it's in the correct format
+    parsed_date = datetime.strptime(item.date, "%Y-%m-%d").strftime("%d-%m-%Y")
+    due_date = datetime.strptime(item.due_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+    result = manager_task_assignment(item.task, item.userid, item.TL, parsed_date, due_date)
     return result
 
 
-@app.post("/edit_task")
+@app.put("/edit_task")
 async def edit_task(item: Taskedit):
     today = datetime.today()
     formatted_date = today.strftime("%d-%m-%Y")
-    try:
-        # Parse the date to ensure it's in the correct format
-        parsed_date = datetime.strptime(item.date, "%d-%m-%Y").strftime("%d-%m-%Y")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use dd-mm-yyyy.")
-    result = edit_the_task(item.userid, item.task, parsed_date, formatted_date, item.updated_task, item.status)
+    result = edit_the_task(item.taskid, item.userid, formatted_date, item.due_date, item.updated_task, item.status)
     return {"result": result}
 
 
 @app.delete("/task_delete")
 async def task_delete(item: Deletetask):
-    try:
-        # Parse the date to ensure it's in the correct format
-        parsed_date = datetime.strptime(item.date, "%d-%m-%Y").strftime("%d-%m-%Y")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use dd-mm-yyyy.")
-    result = delete_a_task(item.task, item.userid, parsed_date)
+    result = delete_a_task(item.taskid)
     return {"result": result}
 
-
-
-@app.get("/get_tasks/{userid}/{date}")
-async def get_tasks(userid: str, date: str):
-    try:
-        # Parse the date to ensure it's in the correct format
-        parsed_date = datetime.strptime(date, "%d-%m-%Y").strftime("%d-%m-%Y")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use dd-mm-yyyy.")
-    
-    result = get_the_tasks(userid, parsed_date)
+@app.get("/get_tasks/{userid}")
+async def get_tasks(userid: str):
+    result = get_the_tasks(userid)
     if not result:
-        return {"message": "No tasks found for the given user and date"}
+        return {"message": "No tasks found for the given user"}
     return result
+
+@app.get("/get_single_task/{taskid}")
+async def get_task(taskid : str):
+    result = get_single_task(taskid)
+    if not result:
+        return {"message": "No tasks found for the given task id"}
+    return result
+
 
 @app.get("/get_user/{userid}")
-def get_user(userid:str):
-    result = get_user_info(userid)
-    return result
+def get_user(userid: str):
+ result = get_user_info(userid)
+ return result
+
+@app.put("/edit_employee")
+def add_employee(item:EditEmployee):
+ result = edit_an_employee(item.dict())
+ return result
+
+@app.get("/get_managers_list")
+async def fetch_managers():
+ result = get_managers()
+ return result
+
 
 @app.get("/get_admin/{userid}")
-def get_admin(userid:str):
-    result = get_admin_info(userid)
+def get_admin(userid: str):
+    result = Mongo.get_admin_information(userid)
     return result 
 
 @app.post("/add_employee")
@@ -645,12 +584,39 @@ def add_employee(item:AddEmployee):
     result = add_an_employee(item.dict())
     return result
 
-@app.post("/add_manager")
-def add_manager(item:AddEmployee):
-    result = add_a_manager(item.dict())
-    return result
 
 @app.get("/auto_approve_manager_leaves")
 async def trigger_auto_approval():
     result = auto_approve_manager_leaves()
     return result
+
+@app.get("/get_team_members")
+def get_members(TL: str = Query(..., alias="TL")):
+    result = get_team_members(TL)
+    return result
+
+@app.post("/task_assign_to_multiple_members") 
+def task_assign(item: Taskassign):
+    result = task_assign_to_multiple_users(item.Task_details)
+    return {"inserted_ids": result}
+
+@app.get("/get_assigned_task")
+def get_assigned_tasks(TL: str = Query(..., alias="TL"), userid: str | None = Query(None, alias = "userid")):
+    result = assigned_task(TL, userid)
+    return result
+
+@app.get("/ip-info")
+def fetch_ip_info():
+    return {
+        "public_ip": get_public_ip(),
+        "local_ip": get_local_ip()
+}
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "Server:app",  # Replace with your actual file/module name
+        host="0.0.0.0",  # Listen on all network interfaces (public access)
+        port=443,  # Or another port like 4433 if needed
+        ssl_keyfile="private.key",  # Update with your actual paths
+        ssl_certfile="certificate.crt"
+    )

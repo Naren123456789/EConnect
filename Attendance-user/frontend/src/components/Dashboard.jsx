@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from "axios";
-import { Baseaxios, LS } from "../Utils/Resuse";
+import { Baseaxios, LS ,ipadr} from "../Utils/Resuse";
 
 export default function Clockdashboard() {
   const [attendanceData, setAttendanceData] = useState([]);
@@ -12,7 +12,7 @@ export default function Clockdashboard() {
       try {
       
         const userid = LS.get("userid");
-        const attendanceResponse = await axios.get(`http://127.0.0.1:8000/clock-records/${userid}`);
+        const attendanceResponse = await axios.get(`${ipadr}/clock-records/${userid}`);
         console.log("API Response:", attendanceResponse.data);
         setAttendanceData(attendanceResponse.data && Array.isArray(attendanceResponse.data.clock_records) ? attendanceResponse.data.clock_records : []);
         setLoading(false);

@@ -171,13 +171,13 @@ const handleApplyButtonClick = () => {
       const year = formattedSelectedDate.getFullYear();
       const month = String(formattedSelectedDate.getMonth() + 1).padStart(2, "0");
       const day = String(formattedSelectedDate.getDate()).padStart(2, "0");
-      formattedSelectedDate = `${year}-${month}-${day}T00:00:00.000Z`;
+      formattedSelectedDate = `${year}-${month}-${day}`;
 
       newLeave = {
         leaveType,
         selectedDate: formattedSelectedDate,
         reason,
-        requestDate: new Date().toISOString(),
+        requestDate: new Date().toISOString().split('T')[0],
       };
     } else if (leaveType === "Other Leave") {
       let formattedFromDate = otherFromDate;
@@ -185,12 +185,12 @@ const handleApplyButtonClick = () => {
 
       // Convert otherFromDate to a Date object if it's not already
       if (!(otherFromDate instanceof Date)) {
-        formattedFromDate = new Date(otherFromDate);
+        formattedFromDate = new Date(otherFromDate).toISOString().split('T')[0];
       }
 
       // Convert otherToDate to a Date object if it's not already
       if (!(otherToDate instanceof Date)) {
-        formattedToDate = new Date(otherToDate);
+        formattedToDate = new Date(otherToDate).toISOString().split('T')[0];
       }
 
       newLeave = {
@@ -198,7 +198,7 @@ const handleApplyButtonClick = () => {
         selectedDate: formattedFromDate,
         ToDate: formattedToDate,
         reason: otherReason,
-        requestDate: new Date().toISOString(),
+        requestDate: new Date().toISOString().split('T')[0],
       };
     } else if (leaveType === "Permission") {
       let formattedSelectedDate = selectedDate;
@@ -210,14 +210,14 @@ const handleApplyButtonClick = () => {
       const year = formattedSelectedDate.getFullYear();
       const month = String(formattedSelectedDate.getMonth() + 1).padStart(2, "0");
       const day = String(formattedSelectedDate.getDate()).padStart(2, "0");
-      formattedSelectedDate = `${year}-${month}-${day}T00:00:00.000Z`;
+      formattedSelectedDate = `${year}-${month}-${day}`;
 
       newLeave = {
         leaveType,
         selectedDate: formattedSelectedDate,
         timeSlot,
         reason,
-        requestDate: new Date().toISOString(),
+        requestDate: new Date().toISOString().split('T')[0],
       };
     }
 

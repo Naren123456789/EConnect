@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineEdit } from "react-icons/ai";
-import { LS } from "../Utils/Resuse";
+import { LS,ipadr } from "../Utils/Resuse";
 
-const API_BASE_URL = "http://127.0.0.1:8000"; // Backend URL
+const API_BASE_URL = `${ipadr}`; // Backend URL
 
 const UserProfile = () => {
     const navigate = useNavigate();
